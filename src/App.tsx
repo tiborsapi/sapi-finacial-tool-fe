@@ -224,7 +224,13 @@ function DashboardPage() {
   }, [filters, refresh]);
 
   function changeFilter<Key extends keyof IncomeFilters>(key: Key, value: IncomeFilters[Key]) {
-    setFilters((current) => ({ ...current, [key]: value, page: 1 }));
+    setFilters((current) => {
+      if (key === 'page') {
+        return { ...current, page: Number(value) };
+      }
+
+      return { ...current, [key]: value, page: 1 };
+    });
   }
 
   function changeSort(field: IncomeSortField) {
