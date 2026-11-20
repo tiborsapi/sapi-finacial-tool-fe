@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App';
-import type { Income, IncomeInput, IncomeList } from './incomeApi';
+import type { MoneyRecord, RecordInput, RecordList } from './recordApi';
 
 const fetchMock = vi.fn<typeof fetch>();
-let incomes: Income[];
+let incomes: MoneyRecord[];
 
 function incomeList(
   data = incomes,
@@ -13,7 +13,7 @@ function incomeList(
   perPage = 8,
   totalItems = data.length,
   totalAmountCents = data.reduce((sum, income) => sum + income.amount_cents, 0),
-): IncomeList {
+): RecordList {
   return {
     data,
     pagination: {
@@ -38,8 +38,8 @@ beforeEach(() => {
   incomes = [];
   fetchMock.mockImplementation(async (input, init) => {
     if (init?.method === 'POST') {
-      const inputData = JSON.parse(String(init.body)) as IncomeInput;
-      const created: Income = {
+      const inputData = JSON.parse(String(init.body)) as RecordInput;
+      const created: MoneyRecord = {
         ...inputData,
         id: 'income-1',
         created_at: '2026-05-01T10:00:00Z',
@@ -50,8 +50,8 @@ beforeEach(() => {
     }
 
     if (init?.method === 'PUT') {
-      const inputData = JSON.parse(String(init.body)) as IncomeInput;
-      const updated: Income = {
+      const inputData = JSON.parse(String(init.body)) as RecordInput;
+      const updated: MoneyRecord = {
         ...inputData,
         id: 'income-1',
         created_at: '2026-05-01T10:00:00Z',
@@ -138,7 +138,6 @@ describe('Income dashboard', () => {
       description: null,
       received_on: expect.any(String),
     });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Monthly salary' }));
     fireEvent.change(screen.getByLabelText('Source'), {

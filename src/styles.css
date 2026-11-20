@@ -691,6 +691,11 @@ td {
 .source-investments { background: #fff3e4; color: #c38536; }
 .source-business { background: #eaf2fc; color: #5c83bb; }
 .source-other { background: #f3eff0; color: #98747f; }
+.source-rent { background: #fbeeee; color: #b4605a; }
+.source-food { background: #fff3e4; color: #c38536; }
+.source-transport { background: #eaf2fc; color: #5c83bb; }
+.source-utilities { background: #eef6f1; color: #5a9a78; }
+.source-health { background: #f1eefb; color: #806bb1; }
 
 .source-cell > span:last-child {
   display: grid;
@@ -741,6 +746,16 @@ td {
 .category-business i { background: #789bc7; }
 .category-other { background: #f4f0f1; color: #90737a; }
 .category-other i { background: #a8858d; }
+.category-rent { background: #fbefee; color: #b4605a; }
+.category-rent i { background: #d1827b; }
+.category-food { background: #fff5e9; color: #ad7a36; }
+.category-food i { background: #d49b4e; }
+.category-transport { background: #edf3fa; color: #5e7fa8; }
+.category-transport i { background: #789bc7; }
+.category-utilities { background: #edf6f0; color: #5a9a78; }
+.category-utilities i { background: #7bb996; }
+.category-health { background: #f3f0fa; color: #7969a4; }
+.category-health i { background: #9983c6; }
 
 .date-cell {
   color: #78858b;
@@ -751,6 +766,10 @@ td {
   font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.amount-cell.amount-expense {
+  color: #b0473f;
 }
 
 .row-actions {
