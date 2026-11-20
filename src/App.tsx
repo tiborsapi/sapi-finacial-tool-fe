@@ -1,18 +1,19 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Link, Routes, Route } from 'react-router-dom';
+import { EXPENSE, INCOME, type Kind } from './kinds';
 import {
-  createIncome,
-  deleteIncome,
-  INCOME_CATEGORIES,
-  listIncomes,
-  updateIncome,
-  type Income,
-  type IncomeFilters,
-  type IncomeInput,
-  type IncomeSortField,
-} from './incomeApi';
+  createRecord,
+  deleteRecord,
+  listRecords,
+  updateRecord,
+  type MoneyRecord,
+  type RecordFilters,
+  type RecordInput,
+  type RecordList,
+  type SortField,
+} from './recordApi';
 
-const initialFilters: IncomeFilters = {
+const initialFilters: RecordFilters = {
   page: 1,
   per_page: 8,
   q: '',
@@ -56,24 +57,24 @@ function categoryClass(category: string) {
   return `category category-${category.toLowerCase()}`;
 }
 
-function IncomeForm({
-  income,
+function RecordForm({
+  kind,
+  record,
   onClose,
   onSave,
 }: {
-  income: Income | null;
+  kind: Kind;
+  record: MoneyRecord | null;
   onClose: () => void;
-  onSave: (input: IncomeInput) => Promise<void>;
+  onSave: (input: RecordInput) => Promise<void>;
 }) {
-  const [source, setSource] = useState(income?.source ?? '');
+  const [source, setSource] = useState(record?.source ?? '');
   const [amount, setAmount] = useState(
-    income ? (income.amount_cents / 100).toFixed(2) : '',
+    record ? (record.amount_cents / 100).toFixed(2) : '',
   );
-  const [category, setCategory] = useState<(typeof INCOME_CATEGORIES)[number]>(
-    income?.category ?? 'Salary',
-  );
-  const [receivedOn, setReceivedOn] = useState(income?.received_on ?? today());
-  const [description, setDescription] = useState(income?.description ?? '');
+  const [category, setCategory] = useState(record?.category ?? kind.categories[0]);
+  const [receivedOn, setReceivedOn] = useState(record?.received_on ?? today());
+  const [description, setDescription] = useState(record?.description ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -97,7 +98,7 @@ function IncomeForm({
       });
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : 'Could not save this income.',
+        saveError instanceof Error ? saveError.message : `Could not save this ${kind.noun}.`,
       );
     } finally {
       setSaving(false);
@@ -109,15 +110,15 @@ function IncomeForm({
       if (event.target === event.currentTarget) onClose();
     }}>
       <section
-        aria-labelledby="income-dialog-title"
+        aria-labelledby={`${kind.name}-dialog-title`}
         aria-modal="true"
         className="modal"
         role="dialog"
       >
         <div className="modal-heading">
           <div>
-            <p className="eyebrow">{income ? 'UPDATE RECORD' : 'NEW RECORD'}</p>
-            <h2 id="income-dialog-title">{income ? 'Edit income' : 'Add income'}</h2>
+            <p className="eyebrow">{record ? 'UPDATE RECORD' : 'NEW RECORD'}</p>
+            <h2 id={`${kind.name}-dialog-title`}>{record ? `Edit ${kind.noun}` : `Add ${kind.noun}`}</h2>
           </div>
           <button aria-label="Close dialog" className="icon-button" onClick={onClose} type="button">
             ×
@@ -130,7 +131,7 @@ function IncomeForm({
               autoFocus
               maxLength={120}
               onChange={(event) => setSource(event.target.value)}
-              placeholder="e.g. Monthly salary"
+              placeholder={kind.sourcePlaceholder}
               required
               value={source}
             />
@@ -148,13 +149,13 @@ function IncomeForm({
             </label>
             <label>
               Category
-              <select onChange={(event) => setCategory(event.target.value as typeof category)} value={category}>
-                {INCOME_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+              <select onChange={(event) => setCategory(event.target.value)} value={category}>
+                {kind.categories.map((item) => <option key={item}>{item}</option>)}
               </select>
             </label>
           </div>
           <label>
-            Received on
+            {kind.dateLabel}
             <input
               onChange={(event) => setReceivedOn(event.target.value)}
               required
@@ -167,7 +168,7 @@ function IncomeForm({
             <textarea
               maxLength={500}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Add a note about this income"
+              placeholder={`Add a note about this ${kind.noun}`}
               rows={3}
               value={description}
             />
@@ -176,7 +177,7 @@ function IncomeForm({
           <div className="modal-actions">
             <button className="button button-quiet" onClick={onClose} type="button">Cancel</button>
             <button className="button button-primary" disabled={saving} type="submit">
-              {saving ? 'Saving…' : income ? 'Save changes' : 'Add income'}
+              {saving ? 'Saving…' : record ? 'Save changes' : `Add ${kind.noun}`}
             </button>
           </div>
         </form>
@@ -185,13 +186,14 @@ function IncomeForm({
   );
 }
 
-function DashboardPage() {
+function RecordsPage({ kind }: { kind: Kind }) {
   const [filters, setFilters] = useState(initialFilters);
   const [searchText, setSearchText] = useState('');
-  const [result, setResult] = useState<Awaited<ReturnType<typeof listIncomes>> | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [result, setResult] = useState<RecordList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [editing, setEditing] = useState<Income | null>(null);
+  const [editing, setEditing] = useState<MoneyRecord | null>(null);
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -208,22 +210,22 @@ function DashboardPage() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    listIncomes(filters, controller.signal)
+    listRecords(kind.apiPath, filters, controller.signal)
       .then((response) => {
         setResult(response);
         setError('');
       })
       .catch((requestError: unknown) => {
         if (requestError instanceof Error && requestError.name === 'AbortError') return;
-        setError(requestError instanceof Error ? requestError.message : 'Could not load income records.');
+        setError(requestError instanceof Error ? requestError.message : `Could not load ${kind.noun} records.`);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, refresh]);
+  }, [kind, filters, refresh]);
 
-  function changeFilter<Key extends keyof IncomeFilters>(key: Key, value: IncomeFilters[Key]) {
+  function changeFilter<Key extends keyof RecordFilters>(key: Key, value: RecordFilters[Key]) {
     setFilters((current) => {
       if (key === 'page') {
         return { ...current, page: Number(value) };
@@ -233,7 +235,7 @@ function DashboardPage() {
     });
   }
 
-  function changeSort(field: IncomeSortField) {
+  function changeSort(field: SortField) {
     setFilters((current) => ({
       ...current,
       sort_by: field,
@@ -242,11 +244,11 @@ function DashboardPage() {
     }));
   }
 
-  async function saveIncome(input: IncomeInput) {
+  async function saveRecord(input: RecordInput) {
     setBusy(true);
     try {
-      if (editing) await updateIncome(editing.id, input);
-      else await createIncome(input);
+      if (editing) await updateRecord(kind.apiPath, editing.id, input);
+      else await createRecord(kind.apiPath, input);
       setEditing(null);
       setAdding(false);
       setRefresh((current) => current + 1);
@@ -255,19 +257,19 @@ function DashboardPage() {
     }
   }
 
-  async function removeIncome(income: Income) {
-    if (!window.confirm(`Delete the income from "${income.source}"? This cannot be undone.`)) return;
+  async function removeRecord(record: MoneyRecord) {
+    if (!window.confirm(`Delete the ${kind.noun} from "${record.source}"? This cannot be undone.`)) return;
     setBusy(true);
-    setError('');
+    setDeleteError('');
     try {
-      await deleteIncome(income.id);
+      await deleteRecord(kind.apiPath, record.id);
       if (result?.data.length === 1 && filters.page > 1) {
         setFilters((current) => ({ ...current, page: current.page - 1 }));
       } else {
         setRefresh((current) => current + 1);
       }
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete this income.');
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : `Could not delete this ${kind.noun}.`);
     } finally {
       setBusy(false);
     }
@@ -287,8 +289,8 @@ function DashboardPage() {
         <div className="workspace-label">WORKSPACE</div>
         <nav aria-label="Main navigation" className="side-nav">
           <span aria-disabled="true" className="nav-item nav-item-muted"><span className="nav-icon">◫</span>Overview</span>
-          <a aria-current="page" className="nav-item nav-item-active" href="#income"><span className="nav-icon">↗</span>Income</a>
-          <span aria-disabled="true" className="nav-item nav-item-muted"><span className="nav-icon">↘</span>Expenses</span>
+          <Link aria-current={kind === INCOME ? 'page' : undefined} className={`nav-item${kind === INCOME ? ' nav-item-active' : ''}`} to={INCOME.route}><span className="nav-icon">↗</span>Income</Link>
+          <Link aria-current={kind === EXPENSE ? 'page' : undefined} className={`nav-item${kind === EXPENSE ? ' nav-item-active' : ''}`} to={EXPENSE.route}><span className="nav-icon">↘</span>Expenses</Link>
           <span aria-disabled="true" className="nav-item nav-item-muted"><span className="nav-icon">▤</span>Reports</span>
         </nav>
         <div className="sidebar-bottom">
@@ -307,7 +309,7 @@ function DashboardPage() {
 
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> <strong>Income</strong></div>
+          <div className="breadcrumb">Workspace <span>/</span> <strong>{kind.title}</strong></div>
           <div className="topbar-right">
             <span aria-label="Profile" className="avatar avatar-small">Y</span>
           </div>
@@ -317,17 +319,17 @@ function DashboardPage() {
           <section className="welcome-row">
             <div>
               <p className="eyebrow">YOUR MONEY, IN FOCUS</p>
-              <h1>Income <span className="title-dot">.</span></h1>
-              <p className="page-subtitle">A clear view of everything you earn.</p>
+              <h1>{kind.title} <span className="title-dot">.</span></h1>
+              <p className="page-subtitle">{kind.subtitle}</p>
             </div>
             <button className="button button-primary add-button" onClick={() => setAdding(true)} type="button">
-              <span className="plus">+</span> Add income
+              <span className="plus">+</span> Add {kind.noun}
             </button>
           </section>
 
-          <section aria-label="Income summary" className="summary-grid">
+          <section aria-label={`${kind.title} summary`} className="summary-grid">
             <article className="summary-card summary-main">
-              <div className="summary-label">TOTAL INCOME <span className="summary-icon">↗</span></div>
+              <div className="summary-label">TOTAL {kind.title.toUpperCase()} <span className="summary-icon">↗</span></div>
               <div className="summary-value">{loading && !result ? '—' : formatMoney(result?.total_amount_cents ?? 0)}</div>
               <div className="summary-foot"><span className="summary-accent">↗</span> Across your filtered records</div>
               <div aria-hidden="true" className="summary-decoration"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
@@ -344,11 +346,11 @@ function DashboardPage() {
             </article>
           </section>
 
-          <section aria-label="Income transactions" className="transactions-panel" id="income">
+          <section aria-label={`${kind.title} transactions`} className="transactions-panel" id={kind.name}>
             <div className="panel-heading">
               <div>
-                <h2>Income records</h2>
-                <p>Keep track of every dollar coming in.</p>
+                <h2>{kind.title} records</h2>
+                <p>{kind.panelText}</p>
               </div>
               <span className="record-count">{totalItems} {totalItems === 1 ? 'record' : 'records'}</span>
             </div>
@@ -357,9 +359,9 @@ function DashboardPage() {
               <label className="search-box">
                 <span aria-hidden="true" className="search-icon">⌕</span>
                 <input
-                  aria-label="Search income"
+                  aria-label={`Search ${kind.noun}`}
                   onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Search income..."
+                  placeholder={`Search ${kind.noun}...`}
                   value={searchText}
                 />
               </label>
@@ -367,7 +369,7 @@ function DashboardPage() {
                 <span className="filter-label">Category</span>
                 <select aria-label="Filter by category" onChange={(event) => changeFilter('category', event.target.value)} value={filters.category}>
                   <option value="">All categories</option>
-                  {INCOME_CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+                  {kind.categories.map((category) => <option key={category}>{category}</option>)}
                 </select>
               </label>
               <label className="filter-control date-filter">
@@ -388,6 +390,8 @@ function DashboardPage() {
               </button>
             </div>
 
+            {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+
             <div aria-live="polite" className="table-wrap">
               <table>
                 <thead>
@@ -405,21 +409,21 @@ function DashboardPage() {
                       <td colSpan={5}><span /></td>
                     </tr>
                   ))}
-                  {result?.data.map((income) => (
-                    <tr key={income.id}>
+                  {result?.data.map((record) => (
+                    <tr key={record.id}>
                       <td>
                         <div className="source-cell">
-                          <span className={`source-avatar source-${income.category.toLowerCase()}`}>{income.source.trim().charAt(0).toUpperCase()}</span>
-                          <span><strong>{income.source}</strong><small>{income.description || 'Income received'}</small></span>
+                          <span className={`source-avatar source-${record.category.toLowerCase()}`}>{record.source.trim().charAt(0).toUpperCase()}</span>
+                          <span><strong>{record.source}</strong><small>{record.description || kind.defaultNote}</small></span>
                         </div>
                       </td>
-                      <td><span className={categoryClass(income.category)}><i />{income.category}</span></td>
-                      <td className="date-cell">{formatDate(income.received_on)}</td>
-                      <td className="amount-cell">+{formatMoney(income.amount_cents)}</td>
+                      <td><span className={categoryClass(record.category)}><i />{record.category}</span></td>
+                      <td className="date-cell">{formatDate(record.received_on)}</td>
+                      <td className={`amount-cell amount-${kind.name}`}>{kind.sign}{formatMoney(record.amount_cents)}</td>
                       <td>
                         <div className="row-actions">
-                          <button aria-label={`Edit ${income.source}`} className="row-action" disabled={busy} onClick={() => setEditing(income)} type="button">Edit</button>
-                          <button aria-label={`Delete ${income.source}`} className="row-action row-action-delete" disabled={busy} onClick={() => void removeIncome(income)} type="button">Delete</button>
+                          <button aria-label={`Edit ${record.source}`} className="row-action" disabled={busy} onClick={() => setEditing(record)} type="button">Edit</button>
+                          <button aria-label={`Delete ${record.source}`} className="row-action row-action-delete" disabled={busy} onClick={() => void removeRecord(record)} type="button">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -427,16 +431,16 @@ function DashboardPage() {
                   {!loading && result?.data.length === 0 && (
                     <tr><td className="empty-cell" colSpan={5}>
                       <span className="empty-icon">↗</span>
-                      <strong>{filters.q || filters.category || filters.from || filters.to ? 'No matching income' : 'Your income story starts here'}</strong>
-                      <span>{filters.q || filters.category || filters.from || filters.to ? 'Try adjusting your filters.' : 'Add your first income record to see it here.'}</span>
+                      <strong>{filters.q || filters.category || filters.from || filters.to ? `No matching ${kind.noun}` : kind.emptyTitle}</strong>
+                      <span>{filters.q || filters.category || filters.from || filters.to ? 'Try adjusting your filters.' : kind.emptyText}</span>
                       {!filters.q && !filters.category && !filters.from && !filters.to && (
-                        <button className="button button-primary empty-add" onClick={() => setAdding(true)} type="button">Add your first income</button>
+                        <button className="button button-primary empty-add" onClick={() => setAdding(true)} type="button">Add your first {kind.noun}</button>
                       )}
                     </td></tr>
                   )}
                   {error && (
                     <tr><td className="empty-cell error-cell" colSpan={5}>
-                      <strong>We couldn’t load your income</strong><span>{error}</span>
+                      <strong>We couldn’t load your {kind.noun}</strong><span>{error}</span>
                       <button className="button button-quiet" onClick={() => setRefresh((current) => current + 1)} type="button">Try again</button>
                     </td></tr>
                   )}
@@ -457,15 +461,16 @@ function DashboardPage() {
       </main>
 
       {(adding || editing) && (
-        <IncomeForm
-          income={editing}
+        <RecordForm
+          kind={kind}
+          record={editing}
           onClose={() => {
             if (!busy) {
               setAdding(false);
               setEditing(null);
             }
           }}
-          onSave={saveIncome}
+          onSave={saveRecord}
         />
       )}
     </div>
@@ -475,7 +480,9 @@ function DashboardPage() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<DashboardPage />} />
+      {/* `key` resets all page state when switching between income and expenses. */}
+      <Route path={INCOME.route} element={<RecordsPage key={INCOME.name} kind={INCOME} />} />
+      <Route path={EXPENSE.route} element={<RecordsPage key={EXPENSE.name} kind={EXPENSE} />} />
     </Routes>
   );
 }

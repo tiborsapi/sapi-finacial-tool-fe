@@ -1,39 +1,31 @@
-export const INCOME_CATEGORIES = [
-  'Salary',
-  'Freelance',
-  'Investments',
-  'Business',
-  'Other',
-] as const;
-
-export type IncomeCategory = (typeof INCOME_CATEGORIES)[number];
-export type IncomeSortField = 'received_on' | 'amount' | 'source' | 'category';
+export type SortField = 'received_on' | 'amount' | 'source' | 'category';
 export type SortOrder = 'asc' | 'desc';
 
-export interface Income {
+/** An income or an expense: both have the same shape. */
+export interface MoneyRecord {
   id: string;
   amount_cents: number;
   source: string;
-  category: IncomeCategory;
+  category: string;
   description: string | null;
   received_on: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface IncomeFilters {
+export interface RecordFilters {
   page: number;
   per_page: number;
   q: string;
   category: string;
   from: string;
   to: string;
-  sort_by: IncomeSortField;
+  sort_by: SortField;
   sort_order: SortOrder;
 }
 
-export interface IncomeList {
-  data: Income[];
+export interface RecordList {
+  data: MoneyRecord[];
   pagination: {
     page: number;
     per_page: number;
@@ -43,10 +35,10 @@ export interface IncomeList {
   total_amount_cents: number;
 }
 
-export interface IncomeInput {
+export interface RecordInput {
   amount_cents: number;
   source: string;
-  category: IncomeCategory;
+  category: string;
   description: string | null;
   received_on: string;
 }
@@ -78,28 +70,28 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function listIncomes(filters: IncomeFilters, signal?: AbortSignal) {
+export function listRecords(apiPath: string, filters: RecordFilters, signal?: AbortSignal) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== '') params.set(key, String(value));
   }
-  return request<IncomeList>(`/api/incomes?${params}`, { signal });
+  return request<RecordList>(`${apiPath}?${params}`, { signal });
 }
 
-export function createIncome(input: IncomeInput) {
-  return request<Income>('/api/incomes', {
+export function createRecord(apiPath: string, input: RecordInput) {
+  return request<MoneyRecord>(apiPath, {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
-export function updateIncome(id: string, input: IncomeInput) {
-  return request<Income>(`/api/incomes/${id}`, {
+export function updateRecord(apiPath: string, id: string, input: RecordInput) {
+  return request<MoneyRecord>(`${apiPath}/${id}`, {
     method: 'PUT',
     body: JSON.stringify(input),
   });
 }
 
-export function deleteIncome(id: string) {
-  return request<void>(`/api/incomes/${id}`, { method: 'DELETE' });
+export function deleteRecord(apiPath: string, id: string) {
+  return request<void>(`${apiPath}/${id}`, { method: 'DELETE' });
 }
